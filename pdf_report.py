@@ -7,15 +7,19 @@ from reportlab.platypus import (
 )
 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
+from reportlab.lib.pagesizes import A4
+
 
 from datetime import datetime
 
 
 
-# 注册中文字体
+# =========================
+# 中文字体
+# =========================
 
 pdfmetrics.registerFont(
     UnicodeCIDFont(
@@ -25,6 +29,10 @@ pdfmetrics.registerFont(
 
 
 
+# =========================
+# 生成PDF
+# =========================
+
 def create_pdf(
         important,
         related,
@@ -33,16 +41,45 @@ def create_pdf(
 
 
     doc = SimpleDocTemplate(
-        filename
+
+        filename,
+
+        pagesize=A4,
+
+        rightMargin=50,
+
+        leftMargin=50,
+
+        topMargin=50,
+
+        bottomMargin=50
+
     )
 
 
-    styles=getSampleStyleSheet()
+    styles = getSampleStyleSheet()
 
 
-    chinese_style=ParagraphStyle(
 
-        "Chinese",
+    title_style = ParagraphStyle(
+
+        "title_cn",
+
+        parent=styles["Title"],
+
+        fontName="STSong-Light",
+
+        fontSize=16,
+
+        leading=24
+
+    )
+
+
+
+    normal_style = ParagraphStyle(
+
+        "normal_cn",
 
         parent=styles["Normal"],
 
@@ -55,20 +92,25 @@ def create_pdf(
     )
 
 
-    title_style=ParagraphStyle(
 
-        "TitleCN",
+    small_style = ParagraphStyle(
 
-        parent=styles["Title"],
+        "small_cn",
+
+        parent=styles["Normal"],
 
         fontName="STSong-Light",
 
-        fontSize=16
+        fontSize=8,
+
+        leading=12
 
     )
 
 
+
     story=[]
+
 
 
     today=datetime.now().strftime(
@@ -76,11 +118,22 @@ def create_pdf(
     )
 
 
+
+    # =====================
+    # 标题
+    # =====================
+
+
     story.append(
+
         Paragraph(
+
             "强场超快光学文献报告",
+
             title_style
+
         )
+
     )
 
 
@@ -89,23 +142,34 @@ def create_pdf(
     )
 
 
+
     story.append(
+
         Paragraph(
-            f"""
-日期：{today}<br/>
 
-研究方向：<br/>
+f"""
+日期：
 
-固体高次谐波 HHG<br/>
+{today}
 
-光学太赫兹发射<br/>
 
-强场电子动力学<br/>
+研究方向：
+
+固体高次谐波 HHG
+
+光学太赫兹发射
+
+强场电子动力学
 
 固体光场调控
+
+
 """,
-            chinese_style
+
+            normal_style
+
         )
+
     )
 
 
@@ -114,12 +178,29 @@ def create_pdf(
     )
 
 
+
+    # =====================
+    # 重点论文
+    # =====================
+
+
     story.append(
+
         Paragraph(
+
             "一、重点推荐论文",
+
             title_style
+
         )
+
     )
+
+
+    story.append(
+        Spacer(1,15)
+    )
+
 
 
     for i,p in enumerate(important):
@@ -127,79 +208,180 @@ def create_pdf(
 
         text=f"""
 
-{i+1}. {p['title']}<br/><br/>
-
-链接:<br/>
-{p['link']}<br/><br/>
+<b>{i+1}. {p['title']}</b>
 
 
-中文总结:<br/>
+来源期刊：
+
+{p.get('source','Unknown')}
+
+
+链接：
+
+{p['link']}
+
+
+中文总结：
 
 {p['analysis']}
+
 
 """
 
 
         story.append(
+
             Paragraph(
+
                 text,
-                chinese_style
+
+                normal_style
+
             )
+
         )
 
 
         story.append(
-            Spacer(1,15)
+
+            Spacer(1,20)
+
         )
 
+
+
+
+    # =====================
+    # 相关论文列表
+    # =====================
 
 
     story.append(
+
         Paragraph(
+
             "二、其他相关论文",
+
             title_style
+
         )
+
     )
 
 
-    data=[
+    story.append(
+        Spacer(1,15)
+    )
+
+
+
+    table_data=[
+
         [
-            "论文",
-            "链接",
-            "方向"
+
+            "标题",
+
+            "来源",
+
+            "链接"
+
         ]
+
     ]
+
 
 
     for p in related:
 
-        data.append(
+
+        table_data.append(
+
             [
-                p["title"],
-                p["link"],
-                p["category"]
+
+                p.get(
+                    "title",
+                    ""
+                ),
+
+                p.get(
+                    "source",
+                    ""
+                ),
+
+                p.get(
+                    "link",
+                    ""
+                )
+
             ]
+
         )
 
 
-    table=Table(data)
+
+    table=Table(
+
+        table_data,
+
+        repeatRows=1
+
+    )
+
 
 
     table.setStyle(
+
         TableStyle(
+
             [
+
                 (
+
                 "FONTNAME",
+
                 (0,0),
+
                 (-1,-1),
+
                 "STSong-Light"
+
+                ),
+
+
+                (
+
+                "FONTSIZE",
+
+                (0,0),
+
+                (-1,-1),
+
+                8
+
+                ),
+
+
+                (
+
+                "VALIGN",
+
+                (0,0),
+
+                (-1,-1),
+
+                "TOP"
+
                 )
+
             ]
+
         )
+
     )
 
 
     story.append(table)
+
 
 
     doc.build(
