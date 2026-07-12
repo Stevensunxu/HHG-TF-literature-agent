@@ -10,9 +10,9 @@ from email.header import Header
 from openai import OpenAI
 
 
-# =====================================================
-# 基础配置
-# =====================================================
+# ==================================================
+# 邮件配置
+# ==================================================
 
 EMAIL = "ttsunxust@163.com"
 
@@ -22,9 +22,9 @@ SMTP_PORT = 465
 SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
 
 
-# =====================================================
-# DeepSeek API
-# =====================================================
+# ==================================================
+# DeepSeek
+# ==================================================
 
 client = OpenAI(
     api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -32,56 +32,65 @@ client = OpenAI(
 )
 
 
-# =====================================================
-# 搜索关键词
-# =====================================================
+# ==================================================
+# 研究关键词
+# ==================================================
 
 KEYWORDS = [
 
-    "high harmonic generation",
+    # 固体HHG
+    "solid-state high harmonic generation",
+    "high harmonic generation in solids",
     "solid HHG",
-    "solid-state HHG",
+    "crystal high harmonic generation",
 
-    "strong field physics",
+    # 强场
+    "strong-field physics",
     "strong-field electron dynamics",
+    "nonperturbative response",
 
-    "attosecond",
-    "ultrafast electron dynamics",
+    # 光学THz
+    "terahertz emission",
+    "THz emission",
+    "ultrafast terahertz generation",
+    "laser-induced terahertz",
+    "optical rectification",
+    "photocurrent terahertz",
 
+    # 光场控制
+    "light-field control",
+    "ultrafast control of solids",
+    "two-color excitation",
+    "omega-2omega",
+    "coherent control",
+
+    # 超快动力学
+    "ultrafast carrier dynamics",
+    "electron dynamics",
+    "carrier acceleration",
+    "Bloch oscillation",
+
+    # 理论
     "semiconductor Bloch equation",
     "TDDFT",
-
-    "Berry phase",
-    "Berry curvature",
-    "quantum geometry",
-
-    "terahertz",
-    "THz",
-
-    "MgO",
-    "ZnO",
-    "WS2",
-    "MoS2"
+    "Wannier",
+    "Berry connection",
+    "quantum geometry"
 
 ]
 
 
-# 最近多少天
-SEARCH_DAYS = 7
-
-
-
-# =====================================================
-# arXiv 搜索
-# =====================================================
+# ==================================================
+# arXiv搜索
+# ==================================================
 
 def search_arxiv():
 
 
     query = " OR ".join(
         [
-            f'all:"{k}"'
-            for k in KEYWORDS
+            f'all:"{x}"'
+            for x in KEYWORDS
         ]
     )
 
@@ -90,13 +99,13 @@ def search_arxiv():
 
         "search_query": query,
 
-        "start": 0,
+        "start":0,
 
-        "max_results": 30,
+        "max_results":40,
 
-        "sortBy": "submittedDate",
+        "sortBy":"submittedDate",
 
-        "sortOrder": "descending"
+        "sortOrder":"descending"
 
     }
 
@@ -117,7 +126,7 @@ def search_arxiv():
     papers=[]
 
 
-    cutoff = datetime.utcnow() - timedelta(days=SEARCH_DAYS)
+    cutoff = datetime.utcnow()-timedelta(days=7)
 
 
     for entry in feed.entries:
@@ -125,7 +134,7 @@ def search_arxiv():
 
         try:
 
-            published=datetime.strptime(
+            date=datetime.strptime(
                 entry.published[:10],
                 "%Y-%m-%d"
             )
@@ -135,9 +144,8 @@ def search_arxiv():
             continue
 
 
-        if published < cutoff:
+        if date < cutoff:
             continue
-
 
 
         papers.append({
@@ -161,87 +169,175 @@ def search_arxiv():
 
 
 
-# =====================================================
-# DeepSeek 分析
-# =====================================================
+# ==================================================
+# 关键词预评分
+# ==================================================
+
+def keyword_score(paper):
 
 
-def analyze_paper(paper):
+    text = (
+        paper["title"]
+        +
+        paper["abstract"]
+    ).lower()
+
+
+    score=0
+
+
+    positive={
+
+        "high harmonic":30,
+
+        "hhg":30,
+
+        "strong-field":20,
+
+        "terahertz emission":25,
+
+        "thz emission":25,
+
+        "optical rectification":20,
+
+        "ultrafast":15,
+
+        "carrier dynamics":15,
+
+        "semiconductor bloch":15,
+
+        "tddft":10,
+
+        "berry":10
+
+    }
+
+
+    negative={
+
+        "communication":-50,
+
+        "wireless":-50,
+
+        "antenna":-40,
+
+        "network":-30,
+
+        "cryptography":-50
+
+    }
+
+
+    for k,v in positive.items():
+
+        if k in text:
+
+            score += v
+
+
+    for k,v in negative.items():
+
+        if k in text:
+
+            score += v
+
+
+    return score
+
+
+
+# ==================================================
+# DeepSeek分析
+# ==================================================
+
+def ai_analysis(paper):
 
 
     prompt=f"""
 
-You are an expert researcher in strong-field
-solid-state physics and high harmonic generation.
+你是一名强场超快凝聚态物理专家。
 
 
-Analyze this paper:
+请分析下面论文。
 
 
-Title:
+标题:
+
 {paper['title']}
 
 
-Abstract:
+摘要:
+
 {paper['abstract']}
 
 
 
-The user's research background:
+我的研究方向：
 
-- MgO solid-state HHG experiments
-- omega-2omega two-color HHG
-- THz controlled HHG
-- semiconductor Bloch equation
-- TDDFT simulations
-- Wannier interpolation
-
-
-Please provide:
-
-
-1. Relevance score (0-100)
+- 固体高次谐波 HHG
+- MgO强场实验
+- ω-2ω双色场HHG
+- 光学THz发射
+- THz调控固体电子动力学
+- SBE
+- TDDFT
+- Wannier方法
 
 
-2. Main physics mechanism
-
-Discuss:
-
-- interband contribution
-- intraband contribution
-- Berry phase
-- electron-hole dynamics
-- phonon effects
+请用中文回答：
 
 
-3. Method:
-
-Experiment / Theory
-
-If theory:
-
-SBE?
-TDDFT?
-Wannier?
+1. 相关性评分（0-100）
 
 
-4. Relation to MgO HHG:
-
-Explain possible relevance.
+2. 论文主要研究什么？
 
 
-5. Recommendation:
+3. 关键物理机制：
 
-Must read / Worth reading / Low priority
+讨论：
+
+- interband贡献
+- intraband贡献
+- Berry phase/quantum geometry
+- 载流子动力学
+- 声子作用
 
 
-Keep it concise.
+4. 方法：
+
+实验？
+理论？
+
+是否使用：
+
+- SBE
+- TDDFT
+- Wannier
+
+
+5. 与我的研究关系：
+
+是否可能解释：
+
+- MgO HHG
+- 双色场增强
+- THz调控
+- 超快电子动力学
+
+
+6. 推荐等级：
+
+必须读 / 推荐读 / 低优先级
+
+
+如果只是THz通信、THz网络、量子通信，请明确指出无关。
 
 
 """
 
 
-    response = client.chat.completions.create(
+    result=client.chat.completions.create(
 
         model="deepseek-chat",
 
@@ -262,15 +358,13 @@ Keep it concise.
     )
 
 
-    return response.choices[0].message.content
+    return result.choices[0].message.content
 
 
 
-
-# =====================================================
-# 生成报告
-# =====================================================
-
+# ==================================================
+# 生成中文邮件
+# ==================================================
 
 def generate_report(papers):
 
@@ -282,13 +376,15 @@ def generate_report(papers):
 
 ================================================
 
-HHG / Strong-field / THz Literature Report
+强场超快光学文献日报
 
-Date:
+日期：
 {today}
 
-Search period:
-Last {SEARCH_DAYS} days
+
+研究方向：
+
+固体HHG | 光学THz发射 | 光场调控 | 超快动力学
 
 
 ================================================
@@ -299,23 +395,33 @@ Last {SEARCH_DAYS} days
 
     if len(papers)==0:
 
-        return report + "\nNo related papers found."
+        return report+"最近没有发现相关论文"
 
 
-    # 最多分析10篇
 
-    for i,paper in enumerate(papers[:10]):
+    # 取最高评分前10篇
+
+    papers=sorted(
+
+        papers,
+
+        key=keyword_score,
+
+        reverse=True
+
+    )
+
+
+    for i,p in enumerate(papers[:10]):
 
 
         print(
-            "Analyzing:",
-            paper["title"]
+            "AI分析:",
+            p["title"]
         )
 
 
-        analysis=analyze_paper(
-            paper
-        )
+        analysis=ai_analysis(p)
 
 
         report += f"""
@@ -323,21 +429,21 @@ Last {SEARCH_DAYS} days
 ------------------------------------------------
 
 
-{i+1}. {paper['title']}
+{i+1}. {p['title']}
 
 
-Date:
+日期：
 
-{paper['date']}
-
-
-arXiv:
-
-{paper['link']}
+{p['date']}
 
 
+链接：
 
-DeepSeek Analysis:
+{p['link']}
+
+
+
+DeepSeek分析：
 
 
 {analysis}
@@ -351,11 +457,9 @@ DeepSeek Analysis:
 
 
 
-
-# =====================================================
-# 邮件发送
-# =====================================================
-
+# ==================================================
+# 发邮件
+# ==================================================
 
 def send_email(content):
 
@@ -378,7 +482,7 @@ def send_email(content):
 
     msg["Subject"]=Header(
 
-        "HHG Literature AI Report",
+        "强场超快光学文献日报",
 
         "utf-8"
 
@@ -418,22 +522,21 @@ def send_email(content):
 
 
 
-# =====================================================
+# ==================================================
 # MAIN
-# =====================================================
-
+# ==================================================
 
 if __name__=="__main__":
 
 
-    print("Searching arXiv...")
+    print("开始搜索arXiv")
 
 
     papers=search_arxiv()
 
 
     print(
-        "Found papers:",
+        "找到论文:",
         len(papers)
     )
 
@@ -448,6 +551,4 @@ if __name__=="__main__":
     )
 
 
-    print(
-        "DONE"
-    )
+    print("发送完成")
