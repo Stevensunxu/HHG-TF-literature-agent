@@ -1,16 +1,13 @@
-name: HHG Literature Daily
+name: HHG Agent Test
 
 on:
-
-  schedule:
-    - cron: "0 15 * * *"
 
   workflow_dispatch:
 
 
 jobs:
 
-  literature:
+  test:
 
     runs-on: ubuntu-latest
 
@@ -21,20 +18,14 @@ jobs:
       uses: actions/checkout@v4
 
 
-    - name: Python setup
+    - name: Setup Python
       uses: actions/setup-python@v5
 
       with:
         python-version: "3.11"
 
 
-    - name: Install
-      run:
-
-        pip install -r requirements.txt
-
-
-    - name: Run Agent
+    - name: Run Test
 
       env:
 
