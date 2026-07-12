@@ -18,70 +18,81 @@ KEYWORDS = [
 ]
 
 
+
 def search_crossref():
 
-    papers=[]
+    papers = []
 
+    for keyword in KEYWORDS[:10]:
 
-    for keyword in KEYWORDS:
+        url = "https://api.crossref.org/works"
 
+        params = {
 
-        url="https://api.crossref.org/works"
-
-
-        params={
-
-            "query.title":keyword,
-
-            "rows":10,
-
-            "filter":
-            "from-pub-date:2026-01-01"
+            "query.title": keyword,
+            "rows": 10,
+            "select":
+            "title,abstract,DOI,container-title,published"
 
         }
 
+        try:
 
-        r=requests.get(
-            url,
-            params=params
-        )
+            r = requests.get(
+                url,
+                params=params,
+                timeout=15
+            )
 
+            data = r.json()
 
-        data=r.json()
+        except Exception:
+
+            continue
 
 
         for item in data["message"]["items"]:
 
-
-            title=item.get(
+            title = item.get(
                 "title",
-                ["Unknown"]
+                [""]
             )[0]
 
 
-            doi=item.get(
+            doi = item.get(
                 "DOI",
                 ""
             )
 
 
-            papers.append({
+            journal = item.get(
+                "container-title",
+                ["Unknown"]
+            )[0]
 
-                "title":title,
 
-                "link":
-                "https://doi.org/"+doi,
+            abstract = item.get(
+                "abstract",
+                ""
+            )
 
-                "source":
-                "Crossref",
 
-                "abstract":
-                item.get(
-                    "abstract",
-                    ""
-                )
+            if title:
 
-            })
+
+                papers.append({
+
+                    "title": title,
+
+                    "abstract": abstract,
+
+                    "link":
+                    "https://doi.org/" + doi,
+
+                    "source":
+                    journal
+
+                })
 
 
     return papers
