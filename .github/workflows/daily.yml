@@ -1,13 +1,16 @@
-name: HHG Agent Test
+name: HHG Literature Agent
 
 on:
 
   workflow_dispatch:
 
+  schedule:
+    - cron: "0 15 * * *"
+
 
 jobs:
 
-  test:
+  literature:
 
     runs-on: ubuntu-latest
 
@@ -31,12 +34,16 @@ jobs:
         pip install -r requirements.txt
 
 
-    - name: Run Test
+    - name: Run Agent
 
       env:
 
         SMTP_PASSWORD:
           ${{ secrets.SMTP_PASSWORD }}
+
+        DEEPSEEK_API_KEY:
+          ${{ secrets.DEEPSEEK_API_KEY }}
+
 
       run:
 
