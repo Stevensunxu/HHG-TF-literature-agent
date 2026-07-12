@@ -1,23 +1,27 @@
-from fpdf import FPDF
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle
+)
+
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+
 from datetime import datetime
 
 
-class PDFReport(FPDF):
 
-    def header(self):
+# 注册中文字体
 
-        self.set_font(
-            "Noto",
-            size=14
-        )
-
-        self.cell(
-            0,
-            10,
-            "Strong-field Ultrafast Literature Report",
-            ln=True,
-            align="C"
-        )
+pdfmetrics.registerFont(
+    UnicodeCIDFont(
+        "STSong-Light"
+    )
+)
 
 
 
@@ -28,30 +32,43 @@ def create_pdf(
 ):
 
 
-    pdf=PDFReport()
-
-
-    # 加载中文字体
-    pdf.add_font(
-        "Noto",
-        "",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    doc = SimpleDocTemplate(
+        filename
     )
 
 
-    pdf.set_font(
-        "Noto",
-        size=11
+    styles=getSampleStyleSheet()
+
+
+    chinese_style=ParagraphStyle(
+
+        "Chinese",
+
+        parent=styles["Normal"],
+
+        fontName="STSong-Light",
+
+        fontSize=10,
+
+        leading=16
+
     )
 
 
-    pdf.add_page()
+    title_style=ParagraphStyle(
 
+        "TitleCN",
 
-    pdf.set_auto_page_break(
-        auto=True,
-        margin=15
+        parent=styles["Title"],
+
+        fontName="STSong-Light",
+
+        fontSize=16
+
     )
+
+
+    story=[]
 
 
     today=datetime.now().strftime(
@@ -59,48 +76,49 @@ def create_pdf(
     )
 
 
-    pdf.multi_cell(
-        0,
-        8,
-        f"""
-强场超快光学文献报告
-
-日期：
-{today}
+    story.append(
+        Paragraph(
+            "强场超快光学文献报告",
+            title_style
+        )
+    )
 
 
-研究方向：
+    story.append(
+        Spacer(1,20)
+    )
 
-固体高次谐波 HHG
 
-光学太赫兹发射
+    story.append(
+        Paragraph(
+            f"""
+日期：{today}<br/>
 
-强场电子动力学
+研究方向：<br/>
+
+固体高次谐波 HHG<br/>
+
+光学太赫兹发射<br/>
+
+强场电子动力学<br/>
 
 固体光场调控
-
-
-"""
+""",
+            chinese_style
+        )
     )
 
 
-    pdf.set_font(
-        "Noto",
-        size=12
+    story.append(
+        Spacer(1,20)
     )
 
 
-    pdf.cell(
-        0,
-        10,
-        "一、重点推荐论文",
-        ln=True
-    )
-
-
-    pdf.set_font(
-        "Noto",
-        size=10
+    story.append(
+        Paragraph(
+            "一、重点推荐论文",
+            title_style
+        )
     )
 
 
@@ -109,66 +127,81 @@ def create_pdf(
 
         text=f"""
 
-{i+1}. {p['title']}
+{i+1}. {p['title']}<br/><br/>
+
+链接:<br/>
+{p['link']}<br/><br/>
 
 
-链接：
-
-{p['link']}
-
-
-中文总结：
+中文总结:<br/>
 
 {p['analysis']}
-
-
 
 """
 
 
-        pdf.multi_cell(
-            0,
-            7,
-            text
+        story.append(
+            Paragraph(
+                text,
+                chinese_style
+            )
+        )
+
+
+        story.append(
+            Spacer(1,15)
         )
 
 
 
-    pdf.cell(
-        0,
-        10,
-        "二、其他相关论文",
-        ln=True
+    story.append(
+        Paragraph(
+            "二、其他相关论文",
+            title_style
+        )
     )
 
+
+    data=[
+        [
+            "论文",
+            "链接",
+            "方向"
+        ]
+    ]
 
 
     for p in related:
 
-
-        text=f"""
-
-{p['title']}
-
-链接：
-
-{p['link']}
-
-
-方向：
-
-{p['category']}
-
-
-"""
-
-
-        pdf.multi_cell(
-            0,
-            7,
-            text
+        data.append(
+            [
+                p["title"],
+                p["link"],
+                p["category"]
+            ]
         )
 
 
+    table=Table(data)
 
-    pdf.output(filename)
+
+    table.setStyle(
+        TableStyle(
+            [
+                (
+                "FONTNAME",
+                (0,0),
+                (-1,-1),
+                "STSong-Light"
+                )
+            ]
+        )
+    )
+
+
+    story.append(table)
+
+
+    doc.build(
+        story
+    )
