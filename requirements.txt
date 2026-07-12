@@ -3,5 +3,5 @@ pyyaml
 feedparser
 beautifulsoup4
 openai
-fpdf2
+reportlab
 feedparser
