@@ -3,10 +3,10 @@ import requests
 
 def search_semantic():
 
-    papers = []
+    papers=[]
 
 
-    queries = [
+    queries=[
 
         "solid state high harmonic generation",
 
@@ -19,23 +19,29 @@ def search_semantic():
     ]
 
 
+    current_year=datetime.now().year
+
+
     for q in queries:
 
 
         try:
 
-            r = requests.get(
+            r=requests.get(
 
                 "https://api.semanticscholar.org/graph/v1/paper/search",
 
                 params={
 
-                    "query": q,
+                    "query":q,
 
-                    "limit": 10,
+                    "limit":10,
+
+                    "year":
+                    f"{current_year}-",
 
                     "fields":
-                    "title,abstract,url,venue"
+                    "title,abstract,url,venue,year"
 
                 },
 
@@ -44,16 +50,16 @@ def search_semantic():
             )
 
 
-            data = r.json()
+            data=r.json()
 
 
-        except Exception:
+        except:
 
             continue
 
 
 
-        for p in data.get("data", []):
+        for p in data.get("data",[]):
 
 
             papers.append({
@@ -61,17 +67,17 @@ def search_semantic():
                 "title":
                 p.get("title",""),
 
-
                 "abstract":
                 p.get("abstract",""),
-
 
                 "link":
                 p.get("url",""),
 
-
                 "source":
-                p.get("venue","Semantic Scholar")
+                p.get("venue","Semantic Scholar"),
+
+                "year":
+                p.get("year",current_year)
 
             })
 
