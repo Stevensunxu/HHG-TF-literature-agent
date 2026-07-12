@@ -18,81 +18,119 @@ KEYWORDS = [
 ]
 
 
-
 def search_crossref():
 
-    papers = []
+    papers=[]
+
+
+    today=datetime.now()
+
+    week_ago=today-timedelta(days=7)
+
+
+    from_date=week_ago.strftime("%Y-%m-%d")
+
+    until_date=today.strftime("%Y-%m-%d")
+
 
     for keyword in KEYWORDS[:10]:
 
-        url = "https://api.crossref.org/works"
-
-        params = {
-
-            "query.title": keyword,
-            "rows": 10,
-            "select":
-            "title,abstract,DOI,container-title,published"
-
-        }
 
         try:
 
-            r = requests.get(
-                url,
-                params=params,
-                timeout=15
+            r=requests.get(
+
+                "https://api.crossref.org/works",
+
+                params={
+
+                    "query.title": keyword,
+
+                    "rows":20,
+
+                    "filter":
+                    f"from-pub-date:{from_date},until-pub-date:{until_date}",
+
+                    "sort":
+                    "published",
+
+                    "order":
+                    "desc"
+
+                },
+
+                timeout=20
+
             )
 
-            data = r.json()
 
-        except Exception:
+            data=r.json()
+
+
+        except Exception as e:
+
+            print(
+                "Crossref error:",
+                e
+            )
 
             continue
 
 
+
         for item in data["message"]["items"]:
 
-            title = item.get(
+
+            title=item.get(
                 "title",
                 [""]
             )[0]
 
 
-            doi = item.get(
-                "DOI",
-                ""
-            )
+            if not title:
+                continue
 
 
-            journal = item.get(
+
+            journal=item.get(
                 "container-title",
                 ["Unknown"]
             )[0]
 
 
-            abstract = item.get(
+            doi=item.get(
+                "DOI",
+                ""
+            )
+
+
+            abstract=item.get(
                 "abstract",
                 ""
             )
 
 
-            if title:
+
+            papers.append({
+
+                "title":title,
+
+                "abstract":abstract,
+
+                "link":
+                "https://doi.org/"+doi,
+
+                "source":
+                journal,
 
 
-                papers.append({
+                "date":
+                item.get(
+                    "published",
+                    {}
+                )
 
-                    "title": title,
-
-                    "abstract": abstract,
-
-                    "link":
-                    "https://doi.org/" + doi,
-
-                    "source":
-                    journal
-
-                })
+            })
 
 
     return papers
