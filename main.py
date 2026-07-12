@@ -1,7 +1,7 @@
 import os
 import smtplib
 import feedparser
-
+import urllib.parse
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.header import Header
@@ -82,13 +82,25 @@ def search_arxiv():
     )
 
 
+    params = {
+    
+        "search_query": query,
+    
+        "start": 0,
+    
+        "max_results": 30,
+    
+        "sortBy": "submittedDate",
+    
+        "sortOrder": "descending"
+    
+    }
+    
+    
     url = (
         "https://export.arxiv.org/api/query?"
-        f"search_query={query}"
-        "&start=0"
-        "&max_results=30"
-        "&sortBy=submittedDate"
-        "&sortOrder=descending"
+        +
+        urllib.parse.urlencode(params)
     )
 
 
