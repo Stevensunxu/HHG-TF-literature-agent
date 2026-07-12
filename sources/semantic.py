@@ -3,57 +3,77 @@ import requests
 
 def search_semantic():
 
-    url="https://api.semanticscholar.org/graph/v1/paper/search"
+    papers = []
 
 
-    query="solid state high harmonic generation"
+    queries = [
+
+        "solid state high harmonic generation",
+
+        "strong field ultrafast physics",
+
+        "optical terahertz emission",
+
+        "light field control solids"
+
+    ]
 
 
-    params={
-
-        "query":query,
-
-        "limit":20,
-
-        "fields":
-        "title,abstract,url,year"
-
-    }
+    for q in queries:
 
 
-    r=requests.get(
-        url,
-        params=params
-    )
+        try:
+
+            r = requests.get(
+
+                "https://api.semanticscholar.org/graph/v1/paper/search",
+
+                params={
+
+                    "query": q,
+
+                    "limit": 10,
+
+                    "fields":
+                    "title,abstract,url,venue"
+
+                },
+
+                timeout=15
+
+            )
 
 
-    papers=[]
+            data = r.json()
 
 
-    for p in r.json()["data"]:
+        except Exception:
+
+            continue
 
 
-        papers.append({
 
-            "title":
-            p["title"],
+        for p in data.get("data", []):
 
-            "abstract":
-            p.get(
-                "abstract",
-                ""
-            ),
 
-            "link":
-            p.get(
-                "url",
-                ""
-            ),
+            papers.append({
 
-            "source":
-            "Semantic Scholar"
+                "title":
+                p.get("title",""),
 
-        })
+
+                "abstract":
+                p.get("abstract",""),
+
+
+                "link":
+                p.get("url",""),
+
+
+                "source":
+                p.get("venue","Semantic Scholar")
+
+            })
 
 
     return papers
