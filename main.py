@@ -1,15 +1,15 @@
 import os
 import smtplib
+import requests
 import urllib.parse
 import feedparser
 
-
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from email.header import Header
-
 
 from openai import OpenAI
 
@@ -17,79 +17,79 @@ from pdf_report import create_pdf
 
 
 
-EMAIL="ttsunxust@163.com"
+# ==================================================
+# 配置
+# ==================================================
+
+EMAIL = "ttsunxust@163.com"
+
+SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
 
 
-SMTP_PASSWORD=os.environ["SMTP_PASSWORD"]
-
-
-
-client=OpenAI(
+client = OpenAI(
     api_key=os.environ["DEEPSEEK_API_KEY"],
     base_url="https://api.deepseek.com"
 )
 
 
 
-KEYWORDS=[
+# ==================================================
+# 研究方向关键词
+# ==================================================
 
+KEYWORDS = [
 
-"solid-state high harmonic generation",
+    # 固体HHG
+    "solid-state high harmonic generation",
+    "high harmonic generation in solids",
+    "solid HHG",
+    "crystal HHG",
 
-"high harmonic generation in solids",
+    # 强场
+    "strong field physics",
+    "strong-field electron dynamics",
+    "nonlinear optical response",
 
-"solid HHG",
+    # THz光学
+    "terahertz emission",
+    "THz emission",
+    "ultrafast terahertz generation",
+    "optical rectification",
+    "photocurrent THz",
 
-"strong-field physics",
+    # 光场调控
+    "light-field control",
+    "field-driven solids",
+    "two-color excitation",
+    "omega-2omega",
+    "Floquet engineering",
 
-"strong-field electron dynamics",
+    # 超快动力学
+    "ultrafast carrier dynamics",
+    "electron dynamics",
+    "carrier acceleration",
 
-
-"ultrafast terahertz emission",
-
-"THz emission",
-
-"optical rectification",
-
-"photocurrent terahertz",
-
-
-"light-field control",
-
-"two-color excitation",
-
-"omega-2omega",
-
-"coherent control",
-
-
-"ultrafast carrier dynamics",
-
-"electron dynamics",
-
-"carrier acceleration",
-
-
-"semiconductor Bloch equation",
-
-"TDDFT",
-
-"Wannier",
-
-"Berry connection"
-
+    # 理论
+    "semiconductor Bloch equation",
+    "TDDFT",
+    "Berry phase",
+    "quantum geometry"
 
 ]
 
 
+
+# ==================================================
+# arXiv
+# ==================================================
 
 def search_arxiv():
 
 
     query=" OR ".join(
         [
-            f'all:"{x}"'
-            for x in KEYWORDS
+            f'all:"{k}"'
+            for k in KEYWORDS
         ]
     )
 
@@ -97,23 +97,15 @@ def search_arxiv():
     params={
 
         "search_query":query,
-
         "start":0,
-
-        "max_results":50,
-
+        "max_results":40,
         "sortBy":"submittedDate",
-
         "sortOrder":"descending"
 
     }
 
 
-    url=(
-        "https://export.arxiv.org/api/query?"
-        +
-        urllib.parse.urlencode(params)
-    )
+    url="https://export.arxiv.org/api/query?" + urllib.parse.urlencode(params)
 
 
     feed=feedparser.parse(url)
@@ -122,7 +114,7 @@ def search_arxiv():
     papers=[]
 
 
-    cutoff=datetime.utcnow()-timedelta(days=7)
+    cutoff=datetime.utcnow()-timedelta(days=14)
 
 
     for e in feed.entries:
@@ -147,7 +139,10 @@ def search_arxiv():
             e.summary.replace("\n"," "),
 
             "link":
-            e.link
+            e.link,
+
+            "source":
+            "arXiv"
 
         })
 
@@ -156,64 +151,273 @@ def search_arxiv():
 
 
 
+# ==================================================
+# Crossref
+# ==================================================
+
+def search_crossref():
+
+
+    papers=[]
+
+
+    for keyword in KEYWORDS[:10]:
+
+
+        url="https://api.crossref.org/works"
+
+
+        params={
+
+            "query.title":keyword,
+
+            "rows":5
+
+        }
+
+
+        try:
+
+            r=requests.get(
+                url,
+                params=params,
+                timeout=10
+            )
+
+            data=r.json()
+
+
+        except:
+
+            continue
+
+
+
+        for item in data["message"]["items"]:
+
+
+            title=item.get(
+                "title",
+                [""]
+            )[0]
+
+
+            doi=item.get(
+                "DOI",
+                ""
+            )
+
+
+            if title:
+
+
+                papers.append({
+
+                    "title":title,
+
+                    "abstract":
+                    item.get(
+                        "abstract",
+                        ""
+                    ),
+
+                    "link":
+                    "https://doi.org/"+doi,
+
+                    "source":
+                    "Crossref"
+
+                })
+
+
+    return papers
+
+
+
+# ==================================================
+# Semantic Scholar
+# ==================================================
+
+def search_semantic():
+
+
+    papers=[]
+
+
+    queries=[
+
+        "solid state high harmonic generation",
+
+        "ultrafast terahertz emission",
+
+        "strong field physics"
+
+    ]
+
+
+    for q in queries:
+
+
+        try:
+
+            r=requests.get(
+
+                "https://api.semanticscholar.org/graph/v1/paper/search",
+
+                params={
+
+                    "query":q,
+
+                    "limit":10,
+
+                    "fields":
+                    "title,abstract,url"
+
+                },
+
+                timeout=10
+
+            )
+
+
+            data=r.json()
+
+
+        except:
+
+            continue
+
+
+
+        for p in data.get("data",[]):
+
+
+            papers.append({
+
+                "title":
+                p.get("title",""),
+
+                "abstract":
+                p.get("abstract",""),
+
+                "link":
+                p.get("url",""),
+
+                "source":
+                "Semantic Scholar"
+
+            })
+
+
+    return papers
+
+
+
+# ==================================================
+# 去重
+# ==================================================
+
+def remove_duplicate(papers):
+
+
+    result=[]
+
+    seen=set()
+
+
+    for p in papers:
+
+
+        key=p["title"].lower().strip()
+
+
+        if key not in seen:
+
+            seen.add(key)
+
+            result.append(p)
+
+
+    return result
+
+
+
+
+# ==================================================
+# 关键词评分
+# ==================================================
+
 def score(p):
 
 
     text=(
+
         p["title"]
+
         +
+
         p["abstract"]
+
     ).lower()
 
 
     s=0
 
 
-    keys={
+    high={
 
-    "high harmonic":30,
 
-    "hhg":30,
+        "high harmonic":30,
 
-    "strong-field":20,
+        "hhg":30,
 
-    "terahertz emission":25,
+        "strong-field":20,
 
-    "optical rectification":20,
+        "terahertz emission":25,
 
-    "ultrafast":15,
+        "ultrafast":15,
 
-    "semiconductor bloch":15,
+        "optical rectification":20,
 
-    "tddft":10,
+        "carrier dynamics":15,
 
+        "semiconductor bloch":15,
+
+        "tddft":10
 
     }
+
 
 
     bad={
 
-    "communication":-50,
 
-    "wireless":-50,
+        "communication":-50,
 
-    "network":-30,
+        "wireless":-50,
 
-    "antenna":-30,
+        "antenna":-40,
+
+        "network":-30
 
     }
 
 
-    for k,v in keys.items():
+
+    for k,v in high.items():
 
         if k in text:
+
             s+=v
+
 
 
     for k,v in bad.items():
 
         if k in text:
+
             s+=v
+
 
 
     return s
@@ -221,7 +425,11 @@ def score(p):
 
 
 
-def deepseek_summary(p):
+# ==================================================
+# DeepSeek中文总结
+# ==================================================
+
+def analyze(paper):
 
 
     prompt=f"""
@@ -229,37 +437,41 @@ def deepseek_summary(p):
 你是强场超快凝聚态物理专家。
 
 
-分析论文：
+论文：
 
-标题:
-{p['title']}
-
-
-摘要:
-{p['abstract']}
+{paper['title']}
 
 
+摘要：
 
-要求：
+{paper['abstract']}
 
-用中文总结：
 
-1. 研究问题
+
+请用中文写一个科研摘要。
+
+
+包括：
+
+1. 研究内容
 
 2. 核心物理机制
 
-3. 主要实验或理论方法
+3. 实验或理论方法
 
-4. 对强场HHG、光学THz发射、超快动力学有什么意义
+4. 对以下方向的意义：
+
+- 固体HHG
+- 光学THz发射
+- 强场电子动力学
+- 固体光场调控
 
 
-不要评价推荐等级。
-
-不要讨论是否使用SBE等。
+不要输出评分。
+不要输出推荐等级。
 
 
 """
-
 
 
     r=client.chat.completions.create(
@@ -268,13 +480,10 @@ def deepseek_summary(p):
 
         messages=[
 
-        {
-
-        "role":"user",
-
-        "content":prompt
-
-        }
+            {
+                "role":"user",
+                "content":prompt
+            }
 
         ],
 
@@ -287,7 +496,9 @@ def deepseek_summary(p):
 
 
 
-
+# ==================================================
+# 邮件
+# ==================================================
 
 def send_mail(pdf):
 
@@ -299,58 +510,70 @@ def send_mail(pdf):
 
     msg["To"]=EMAIL
 
-
     msg["Subject"]=Header(
+
         "强场超快光学文献报告",
+
         "utf-8"
+
     )
 
 
     msg.attach(
         MIMEText(
-        "今日文献报告已生成，请查看PDF附件。",
-        "plain",
-        "utf-8")
+            "本周强场超快文献PDF报告已生成。",
+            "plain",
+            "utf-8"
+        )
     )
 
 
-    with open(
-        pdf,
-        "rb"
-    ) as f:
+    with open(pdf,"rb") as f:
 
-        from email.mime.application import MIMEApplication
+        att=MIMEApplication(f.read())
 
-        att=MIMEApplication(
-            f.read()
-        )
 
         att.add_header(
+
             "Content-Disposition",
+
             "attachment",
+
             filename=pdf
+
         )
+
 
         msg.attach(att)
 
 
 
     server=smtplib.SMTP_SSL(
+
         "smtp.163.com",
+
         465
+
     )
 
 
     server.login(
+
         EMAIL,
+
         SMTP_PASSWORD
+
     )
 
 
     server.sendmail(
+
         EMAIL,
+
         EMAIL,
+
         msg.as_string()
+
     )
 
 
@@ -358,17 +581,44 @@ def send_mail(pdf):
 
 
 
+# ==================================================
+# MAIN
+# ==================================================
 
 if __name__=="__main__":
 
 
-    papers=search_arxiv()
+    print("Searching...")
+
+
+    papers=[]
+
+
+    papers += search_arxiv()
+
+    papers += search_crossref()
+
+    papers += search_semantic()
+
+
+
+    papers=remove_duplicate(papers)
+
+
+    print(
+        "Total papers:",
+        len(papers)
+    )
 
 
     papers=sorted(
+
         papers,
+
         key=score,
+
         reverse=True
+
     )
 
 
@@ -380,27 +630,39 @@ if __name__=="__main__":
 
     for p in important:
 
-        p["analysis"]=deepseek_summary(p)
+
+        print(
+            "AI:",
+            p["title"]
+        )
+
+
+        p["analysis"]=analyze(p)
 
 
 
     for p in related:
 
-        p["category"]="相关方向"
+        p["category"]=p["source"]
 
 
 
-    filename="Strong_Field_Ultrafast_Report.pdf"
+    pdf="Strong_Field_Ultrafast_Report.pdf"
+
 
 
     create_pdf(
+
         important,
+
         related,
-        filename
+
+        pdf
+
     )
 
 
-    send_mail(filename)
+    send_mail(pdf)
 
 
-    print("Report finished")
+    print("Finished")
