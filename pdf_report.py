@@ -5,8 +5,9 @@ from datetime import datetime
 class PDFReport(FPDF):
 
     def header(self):
+
         self.set_font(
-            "Arial",
+            "Noto",
             size=14
         )
 
@@ -19,25 +20,37 @@ class PDFReport(FPDF):
         )
 
 
+
 def create_pdf(
         important,
         related,
         filename
 ):
 
+
     pdf=PDFReport()
 
-    pdf.add_page()
 
-    pdf.set_auto_page_break(
-        auto=True,
-        margin=15
+    # 加载中文字体
+    pdf.add_font(
+        "Noto",
+        "",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
     )
 
 
     pdf.set_font(
-        "Arial",
+        "Noto",
         size=11
+    )
+
+
+    pdf.add_page()
+
+
+    pdf.set_auto_page_break(
+        auto=True,
+        margin=15
     )
 
 
@@ -52,23 +65,27 @@ def create_pdf(
         f"""
 强场超快光学文献报告
 
-日期:
+日期：
 {today}
 
 
-研究方向:
+研究方向：
 
-- 固体高次谐波 HHG
-- 光学THz发射
-- 强场电子动力学
-- 固体光场调控
+固体高次谐波 HHG
+
+光学太赫兹发射
+
+强场电子动力学
+
+固体光场调控
+
 
 """
     )
 
 
     pdf.set_font(
-        "Arial",
+        "Noto",
         size=12
     )
 
@@ -82,7 +99,7 @@ def create_pdf(
 
 
     pdf.set_font(
-        "Arial",
+        "Noto",
         size=10
     )
 
@@ -95,11 +112,12 @@ def create_pdf(
 {i+1}. {p['title']}
 
 
-链接:
+链接：
+
 {p['link']}
 
 
-中文分析:
+中文总结：
 
 {p['analysis']}
 
@@ -115,12 +133,14 @@ def create_pdf(
         )
 
 
+
     pdf.cell(
         0,
         10,
         "二、其他相关论文",
         ln=True
     )
+
 
 
     for p in related:
@@ -130,9 +150,13 @@ def create_pdf(
 
 {p['title']}
 
+链接：
+
 {p['link']}
 
-方向:
+
+方向：
+
 {p['category']}
 
 
@@ -144,6 +168,7 @@ def create_pdf(
             7,
             text
         )
+
 
 
     pdf.output(filename)
