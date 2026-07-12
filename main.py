@@ -1,7 +1,8 @@
 import os
 import smtplib
-import feedparser
 import urllib.parse
+import feedparser
+
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.header import Header
@@ -9,9 +10,9 @@ from email.header import Header
 from openai import OpenAI
 
 
-# ======================
-# 邮箱
-# ======================
+# =====================================================
+# 基础配置
+# =====================================================
 
 EMAIL = "ttsunxust@163.com"
 
@@ -21,9 +22,9 @@ SMTP_PORT = 465
 SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
 
 
-# ======================
-# DeepSeek
-# ======================
+# =====================================================
+# DeepSeek API
+# =====================================================
 
 client = OpenAI(
     api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -31,45 +32,48 @@ client = OpenAI(
 )
 
 
-# ======================
+# =====================================================
 # 搜索关键词
-# ======================
+# =====================================================
 
 KEYWORDS = [
 
-    "solid-state high harmonic generation",
+    "high harmonic generation",
+    "solid HHG",
+    "solid-state HHG",
 
-    "high harmonic generation in solids",
+    "strong field physics",
+    "strong-field electron dynamics",
 
-    "strong-field ultrafast physics",
-
-    "attosecond physics",
-
-    "terahertz driven dynamics",
-
-    "THz spectroscopy",
+    "attosecond",
+    "ultrafast electron dynamics",
 
     "semiconductor Bloch equation",
+    "TDDFT",
 
-    "TDDFT high harmonic generation",
+    "Berry phase",
+    "Berry curvature",
+    "quantum geometry",
 
-    "Berry phase HHG",
+    "terahertz",
+    "THz",
 
     "MgO",
-
     "ZnO",
-
     "WS2",
-
     "MoS2"
 
 ]
 
 
-# ======================
-# arXiv搜索
-# ======================
+# 最近多少天
+SEARCH_DAYS = 7
 
+
+
+# =====================================================
+# arXiv 搜索
+# =====================================================
 
 def search_arxiv():
 
@@ -83,25 +87,28 @@ def search_arxiv():
 
 
     params = {
-    
+
         "search_query": query,
-    
+
         "start": 0,
-    
+
         "max_results": 30,
-    
+
         "sortBy": "submittedDate",
-    
+
         "sortOrder": "descending"
-    
+
     }
-    
-    
+
+
     url = (
         "https://export.arxiv.org/api/query?"
         +
         urllib.parse.urlencode(params)
     )
+
+
+    print(url)
 
 
     feed = feedparser.parse(url)
@@ -110,56 +117,66 @@ def search_arxiv():
     papers=[]
 
 
-    cutoff = datetime.now() - timedelta(days=3)
+    cutoff = datetime.utcnow() - timedelta(days=SEARCH_DAYS)
 
 
     for entry in feed.entries:
 
 
-        date = datetime.strptime(
-            entry.published[:10],
-            "%Y-%m-%d"
-        )
+        try:
 
+            published=datetime.strptime(
+                entry.published[:10],
+                "%Y-%m-%d"
+            )
 
-        if date < cutoff:
+        except:
+
             continue
 
 
-        papers.append(
-            {
-                "title":
-                entry.title.replace("\n",""),
+        if published < cutoff:
+            continue
 
-                "abstract":
-                entry.summary.replace("\n"," "),
 
-                "link":
-                entry.link,
 
-                "date":
-                entry.published[:10]
-            }
-        )
+        papers.append({
+
+            "title":
+            entry.title.replace("\n"," "),
+
+            "abstract":
+            entry.summary.replace("\n"," "),
+
+            "date":
+            entry.published[:10],
+
+            "link":
+            entry.link
+
+        })
 
 
     return papers
 
 
 
-# ======================
-# DeepSeek分析
-# ======================
+# =====================================================
+# DeepSeek 分析
+# =====================================================
 
 
-def analyze_with_ai(paper):
+def analyze_paper(paper):
 
 
     prompt=f"""
 
-You are an expert in strong-field solid-state physics.
+You are an expert researcher in strong-field
+solid-state physics and high harmonic generation.
+
 
 Analyze this paper:
+
 
 Title:
 {paper['title']}
@@ -169,41 +186,56 @@ Abstract:
 {paper['abstract']}
 
 
-Evaluate:
 
-1. Is this related to:
-- solid HHG
-- strong-field physics
-- THz driven dynamics
-- semiconductor Bloch equation
-- TDDFT
-- Berry phase
+The user's research background:
 
-
-2. Give:
-
-Relevance score (0-100)
-
-
-3. Explain:
-
-- Main physics mechanism
-- Interband or intraband?
-- Theoretical method
-- Experimental method
-
-
-4. Relation to my research:
-
-I study:
-
-- MgO solid HHG
-- omega-2omega HHG
+- MgO solid-state HHG experiments
+- omega-2omega two-color HHG
 - THz controlled HHG
-- SBE and TDDFT simulations
+- semiconductor Bloch equation
+- TDDFT simulations
+- Wannier interpolation
 
 
-Return concise scientific comments.
+Please provide:
+
+
+1. Relevance score (0-100)
+
+
+2. Main physics mechanism
+
+Discuss:
+
+- interband contribution
+- intraband contribution
+- Berry phase
+- electron-hole dynamics
+- phonon effects
+
+
+3. Method:
+
+Experiment / Theory
+
+If theory:
+
+SBE?
+TDDFT?
+Wannier?
+
+
+4. Relation to MgO HHG:
+
+Explain possible relevance.
+
+
+5. Recommendation:
+
+Must read / Worth reading / Low priority
+
+
+Keep it concise.
 
 
 """
@@ -216,8 +248,11 @@ Return concise scientific comments.
         messages=[
 
             {
-                "role":"user",
-                "content":prompt
+
+            "role":"user",
+
+            "content":prompt
+
             }
 
         ],
@@ -232,68 +267,81 @@ Return concise scientific comments.
 
 
 
-# ======================
+# =====================================================
 # 生成报告
-# ======================
+# =====================================================
 
 
 def generate_report(papers):
 
 
-    report="""
+    today=datetime.now().strftime("%Y-%m-%d")
+
+
+    report=f"""
+
+================================================
 
 HHG / Strong-field / THz Literature Report
+
+Date:
+{today}
+
+Search period:
+Last {SEARCH_DAYS} days
+
+
+================================================
 
 
 """
 
 
-    analyzed=[]
+    if len(papers)==0:
+
+        return report + "\nNo related papers found."
 
 
-    for p in papers:
+    # 最多分析10篇
+
+    for i,paper in enumerate(papers[:10]):
 
 
         print(
             "Analyzing:",
-            p["title"]
+            paper["title"]
         )
 
 
-        ai = analyze_with_ai(p)
-
-
-        analyzed.append(
-            {
-                "title":p["title"],
-                "link":p["link"],
-                "date":p["date"],
-                "ai":ai
-            }
+        analysis=analyze_paper(
+            paper
         )
-
-
-    for i,p in enumerate(analyzed):
 
 
         report += f"""
 
-========================
+------------------------------------------------
 
-{i+1}. {p['title']}
+
+{i+1}. {paper['title']}
 
 
 Date:
-{p['date']}
+
+{paper['date']}
 
 
-Link:
-{p['link']}
+arXiv:
+
+{paper['link']}
 
 
-AI Analysis:
 
-{p['ai']}
+DeepSeek Analysis:
+
+
+{analysis}
+
 
 
 """
@@ -303,46 +351,66 @@ AI Analysis:
 
 
 
-# ======================
-# 发邮件
-# ======================
+
+# =====================================================
+# 邮件发送
+# =====================================================
 
 
 def send_email(content):
 
 
     msg=MIMEText(
+
         content,
+
         "plain",
+
         "utf-8"
+
     )
 
 
     msg["From"]=EMAIL
+
     msg["To"]=EMAIL
 
+
     msg["Subject"]=Header(
+
         "HHG Literature AI Report",
+
         "utf-8"
+
     )
 
 
     server=smtplib.SMTP_SSL(
+
         SMTP_SERVER,
+
         SMTP_PORT
+
     )
 
 
     server.login(
+
         EMAIL,
+
         SMTP_PASSWORD
+
     )
 
 
     server.sendmail(
+
         EMAIL,
+
         EMAIL,
+
         msg.as_string()
+
     )
 
 
@@ -350,15 +418,18 @@ def send_email(content):
 
 
 
-# ======================
-# main
-# ======================
+# =====================================================
+# MAIN
+# =====================================================
 
 
 if __name__=="__main__":
 
 
-    papers = search_arxiv()
+    print("Searching arXiv...")
+
+
+    papers=search_arxiv()
 
 
     print(
@@ -367,20 +438,16 @@ if __name__=="__main__":
     )
 
 
-    if len(papers)==0:
-
-        report="No papers found."
-
-    else:
-
-        report=generate_report(
-            papers[:10]
-        )
+    report=generate_report(
+        papers
+    )
 
 
-    send_email(report)
+    send_email(
+        report
+    )
 
 
     print(
-        "Done!"
+        "DONE"
     )
