@@ -8,7 +8,9 @@ on:
 
   schedule:
 
-    - cron: "0 15 * * 0"
+    # 每周一法国时间08:00
+    # UTC 06:00
+    - cron: "0 6 * * 1"
 
 
 
@@ -36,24 +38,23 @@ jobs:
 
 
     - name: Install dependencies
-    
+
       run: |
-    
+
         sudo apt-get update
-    
+
         sudo apt-get install -y fonts-noto-cjk
-    
+
         pip install -r requirements.txt
 
 
 
-    - name: Run
+    - name: Run literature agent
 
       env:
 
         SMTP_PASSWORD:
           ${{ secrets.SMTP_PASSWORD }}
-
 
         DEEPSEEK_API_KEY:
           ${{ secrets.DEEPSEEK_API_KEY }}
