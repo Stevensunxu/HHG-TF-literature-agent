@@ -18,7 +18,7 @@ from pdf_report import create_pdf
 
 
 # ==================================================
-# 配置
+# 基本配置
 # ==================================================
 
 EMAIL = "ttsunxust@163.com"
@@ -34,35 +34,35 @@ client = OpenAI(
 
 
 # ==================================================
-# 研究方向关键词
+# 研究关键词
 # ==================================================
 
 KEYWORDS = [
 
-    # 固体HHG
+    # HHG
     "solid-state high harmonic generation",
     "high harmonic generation in solids",
     "solid HHG",
     "crystal HHG",
 
     # 强场
-    "strong field physics",
-    "strong-field electron dynamics",
+    "strong-field physics",
+    "strong field electron dynamics",
     "nonlinear optical response",
 
-    # THz光学
+    # THz 光学
     "terahertz emission",
     "THz emission",
     "ultrafast terahertz generation",
     "optical rectification",
-    "photocurrent THz",
+    "photocurrent terahertz",
 
     # 光场调控
     "light-field control",
     "field-driven solids",
     "two-color excitation",
     "omega-2omega",
-    "Floquet engineering",
+    "coherent control",
 
     # 超快动力学
     "ultrafast carrier dynamics",
@@ -86,7 +86,7 @@ KEYWORDS = [
 def search_arxiv():
 
 
-    query=" OR ".join(
+    query = " OR ".join(
         [
             f'all:"{k}"'
             for k in KEYWORDS
@@ -94,36 +94,47 @@ def search_arxiv():
     )
 
 
-    params={
+    params = {
 
-        "search_query":query,
-        "start":0,
-        "max_results":40,
-        "sortBy":"submittedDate",
-        "sortOrder":"descending"
+        "search_query": query,
+        "start": 0,
+        "max_results": 40,
+        "sortBy": "submittedDate",
+        "sortOrder": "descending"
 
     }
 
 
-    url="https://export.arxiv.org/api/query?" + urllib.parse.urlencode(params)
+    url = (
+        "https://export.arxiv.org/api/query?"
+        +
+        urllib.parse.urlencode(params)
+    )
 
 
-    feed=feedparser.parse(url)
+    feed = feedparser.parse(url)
 
 
-    papers=[]
+    papers = []
 
 
-    cutoff=datetime.utcnow()-timedelta(days=14)
+    cutoff = datetime.utcnow() - timedelta(days=14)
+
 
 
     for e in feed.entries:
 
 
-        date=datetime.strptime(
-            e.published[:10],
-            "%Y-%m-%d"
-        )
+        try:
+
+            date = datetime.strptime(
+                e.published[:10],
+                "%Y-%m-%d"
+            )
+
+        except:
+
+            continue
 
 
         if date < cutoff:
@@ -151,8 +162,9 @@ def search_arxiv():
 
 
 
+
 # ==================================================
-# Crossref
+# Crossref 正式期刊
 # ==================================================
 
 def search_crossref():
@@ -164,25 +176,24 @@ def search_crossref():
     for keyword in KEYWORDS[:10]:
 
 
-        url="https://api.crossref.org/works"
-
-
-        params={
-
-            "query.title":keyword,
-
-            "rows":5
-
-        }
-
-
         try:
 
             r=requests.get(
-                url,
-                params=params,
-                timeout=10
+
+                "https://api.crossref.org/works",
+
+                params={
+
+                    "query.title":keyword,
+
+                    "rows":10
+
+                },
+
+                timeout=15
+
             )
+
 
             data=r.json()
 
@@ -202,35 +213,46 @@ def search_crossref():
             )[0]
 
 
+            if not title:
+                continue
+
+
+
+            journal=item.get(
+                "container-title",
+                ["Unknown"]
+            )[0]
+
+
+
             doi=item.get(
                 "DOI",
                 ""
             )
 
 
-            if title:
+            abstract=item.get(
+                "abstract",
+                ""
+            )
 
 
-                papers.append({
+            papers.append({
 
-                    "title":title,
+                "title":title,
 
-                    "abstract":
-                    item.get(
-                        "abstract",
-                        ""
-                    ),
+                "abstract":abstract,
 
-                    "link":
-                    "https://doi.org/"+doi,
+                "link":
+                "https://doi.org/"+doi,
 
-                    "source":
-                    "Crossref"
+                "source":journal
 
-                })
+            })
 
 
     return papers
+
 
 
 
@@ -248,9 +270,9 @@ def search_semantic():
 
         "solid state high harmonic generation",
 
-        "ultrafast terahertz emission",
+        "strong field ultrafast physics",
 
-        "strong field physics"
+        "optical terahertz emission"
 
     ]
 
@@ -271,11 +293,11 @@ def search_semantic():
                     "limit":10,
 
                     "fields":
-                    "title,abstract,url"
+                    "title,abstract,url,venue"
 
                 },
 
-                timeout=10
+                timeout=15
 
             )
 
@@ -304,12 +326,13 @@ def search_semantic():
                 p.get("url",""),
 
                 "source":
-                "Semantic Scholar"
+                p.get("venue","Semantic Scholar")
 
             })
 
 
     return papers
+
 
 
 
@@ -344,16 +367,13 @@ def remove_duplicate(papers):
 
 
 # ==================================================
-# 关键词评分
-# ==================================================
-# ==================================================
-# 期刊等级评分
+# 物理相关性评分
 # ==================================================
 
-def journal_score(paper):
+def physics_score(paper):
 
 
-    text = (
+    text=(
 
         paper["title"]
 
@@ -361,20 +381,117 @@ def journal_score(paper):
 
         paper.get("abstract","")
 
-        +
+    ).lower()
+
+
+
+    score=0
+
+
+
+    keywords={
+
+
+        "high harmonic":30,
+
+        "hhg":30,
+
+        "strong-field":20,
+
+        "strong field":20,
+
+
+        "terahertz emission":25,
+
+        "thz emission":25,
+
+        "optical rectification":20,
+
+
+        "ultrafast":15,
+
+        "carrier dynamics":15,
+
+
+        "semiconductor bloch":15,
+
+        "tddft":10,
+
+
+        "berry":10,
+
+        "quantum geometry":10,
+
+
+        "two-color":15
+
+    }
+
+
+
+    for k,v in keywords.items():
+
+        if k in text:
+
+            score+=v
+
+
+
+    bad={
+
+
+        "communication":-50,
+
+        "wireless":-50,
+
+        "antenna":-40,
+
+        "network":-40,
+
+        "cryptography":-50
+
+    }
+
+
+
+    for k,v in bad.items():
+
+        if k in text:
+
+            score+=v
+
+
+
+    return score
+
+
+
+
+# ==================================================
+# 期刊等级评分
+# ==================================================
+
+def journal_score(paper):
+
+
+    text=(
 
         paper.get("source","")
+
+        +
+
+        paper["title"]
 
     ).lower()
 
 
-    score = 0
+
+    score=0
 
 
-    journals = {
 
+    journals={
 
-        # Nature系列
 
         "nature physics":50,
 
@@ -382,17 +499,10 @@ def journal_score(paper):
 
         "nature":45,
 
-        "nature communications":35,
-
-
-        # Science系列
-
         "science":45,
 
         "science advances":35,
 
-
-        # APS
 
         "physical review letters":40,
 
@@ -409,115 +519,30 @@ def journal_score(paper):
         "phys. rev. b":25,
 
 
-        # Optics
-
         "optica":35,
 
-        "optics letters":20,
-
         "advanced photonics":35,
-
-
-        # 其他强相关
-
-        "light: science & applications":40,
-
-        "laser & photonics reviews":35,
-
-
-        # 超快
-
-        "ultrafast science":35,
 
         "acs photonics":30,
 
 
+        "light: science & applications":40,
+
+        "ultrafast science":35
+
     }
 
 
-    for j,w in journals.items():
+
+    for j,v in journals.items():
 
         if j in text:
 
-            score += w
+            score+=v
+
 
 
     return score
-    
-def score(p):
-
-
-    text=(
-
-        p["title"]
-
-        +
-
-        p["abstract"]
-
-    ).lower()
-
-
-    s=0
-
-
-    high={
-
-
-        "high harmonic":30,
-
-        "hhg":30,
-
-        "strong-field":20,
-
-        "terahertz emission":25,
-
-        "ultrafast":15,
-
-        "optical rectification":20,
-
-        "carrier dynamics":15,
-
-        "semiconductor bloch":15,
-
-        "tddft":10
-
-    }
-
-
-
-    bad={
-
-
-        "communication":-50,
-
-        "wireless":-50,
-
-        "antenna":-40,
-
-        "network":-30
-
-    }
-
-
-
-    for k,v in high.items():
-
-        if k in text:
-
-            s+=v
-
-
-
-    for k,v in bad.items():
-
-        if k in text:
-
-            s+=v
-
-
-
-    return s
 
 
 
@@ -534,7 +559,7 @@ def analyze(paper):
 你是强场超快凝聚态物理专家。
 
 
-论文：
+论文标题：
 
 {paper['title']}
 
@@ -545,10 +570,7 @@ def analyze(paper):
 
 
 
-请用中文写一个科研摘要。
-
-
-包括：
+请用中文总结：
 
 1. 研究内容
 
@@ -556,7 +578,7 @@ def analyze(paper):
 
 3. 实验或理论方法
 
-4. 对以下方向的意义：
+4. 对以下方向意义：
 
 - 固体HHG
 - 光学THz发射
@@ -593,8 +615,9 @@ def analyze(paper):
 
 
 
+
 # ==================================================
-# 邮件
+# 邮件发送
 # ==================================================
 
 def send_mail(pdf):
@@ -607,6 +630,7 @@ def send_mail(pdf):
 
     msg["To"]=EMAIL
 
+
     msg["Subject"]=Header(
 
         "强场超快光学文献报告",
@@ -617,17 +641,26 @@ def send_mail(pdf):
 
 
     msg.attach(
+
         MIMEText(
-            "本周强场超快文献PDF报告已生成。",
+
+            "本周强场超快光学文献PDF报告见附件。",
+
             "plain",
+
             "utf-8"
+
         )
+
     )
 
 
     with open(pdf,"rb") as f:
 
-        att=MIMEApplication(f.read())
+
+        att=MIMEApplication(
+            f.read()
+        )
 
 
         att.add_header(
@@ -678,6 +711,7 @@ def send_mail(pdf):
 
 
 
+
 # ==================================================
 # MAIN
 # ==================================================
@@ -685,7 +719,7 @@ def send_mail(pdf):
 if __name__=="__main__":
 
 
-    print("Searching...")
+    print("开始搜索")
 
 
     papers=[]
@@ -699,33 +733,36 @@ if __name__=="__main__":
 
 
 
-    papers=remove_duplicate(papers)
+    papers=remove_duplicate(
+        papers
+    )
 
 
     print(
-        "Total papers:",
+        "论文数量:",
         len(papers)
     )
 
 
+
     papers=sorted(
-    
+
         papers,
-    
+
         key=lambda x:
-    
-            score(x)
-    
-            +
-    
-            journal_score(x),
-    
+
+        physics_score(x)
+        +
+        journal_score(x),
+
         reverse=True
-    
+
     )
 
 
+
     important=papers[:5]
+
 
     related=papers[5:15]
 
@@ -735,7 +772,7 @@ if __name__=="__main__":
 
 
         print(
-            "AI:",
+            "AI分析:",
             p["title"]
         )
 
@@ -765,7 +802,9 @@ if __name__=="__main__":
     )
 
 
+
     send_mail(pdf)
 
 
-    print("Finished")
+
+    print("完成")
