@@ -3,91 +3,90 @@ import smtplib
 import urllib.parse
 import feedparser
 
-from datetime import datetime, timedelta
+
+from datetime import datetime,timedelta
+
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from email.header import Header
+
 
 from openai import OpenAI
 
-
-# ==================================================
-# 邮件配置
-# ==================================================
-
-EMAIL = "ttsunxust@163.com"
-
-SMTP_SERVER = "smtp.163.com"
-SMTP_PORT = 465
-
-SMTP_PASSWORD = os.environ["SMTP_PASSWORD"]
+from pdf_report import create_pdf
 
 
-# ==================================================
-# DeepSeek
-# ==================================================
 
-client = OpenAI(
+EMAIL="ttsunxust@163.com"
+
+
+SMTP_PASSWORD=os.environ["SMTP_PASSWORD"]
+
+
+
+client=OpenAI(
     api_key=os.environ["DEEPSEEK_API_KEY"],
     base_url="https://api.deepseek.com"
 )
 
 
-# ==================================================
-# 研究关键词
-# ==================================================
 
-KEYWORDS = [
+KEYWORDS=[
 
-    # 固体HHG
-    "solid-state high harmonic generation",
-    "high harmonic generation in solids",
-    "solid HHG",
-    "crystal high harmonic generation",
 
-    # 强场
-    "strong-field physics",
-    "strong-field electron dynamics",
-    "nonperturbative response",
+"solid-state high harmonic generation",
 
-    # 光学THz
-    "terahertz emission",
-    "THz emission",
-    "ultrafast terahertz generation",
-    "laser-induced terahertz",
-    "optical rectification",
-    "photocurrent terahertz",
+"high harmonic generation in solids",
 
-    # 光场控制
-    "light-field control",
-    "ultrafast control of solids",
-    "two-color excitation",
-    "omega-2omega",
-    "coherent control",
+"solid HHG",
 
-    # 超快动力学
-    "ultrafast carrier dynamics",
-    "electron dynamics",
-    "carrier acceleration",
-    "Bloch oscillation",
+"strong-field physics",
 
-    # 理论
-    "semiconductor Bloch equation",
-    "TDDFT",
-    "Wannier",
-    "Berry connection",
-    "quantum geometry"
+"strong-field electron dynamics",
+
+
+"ultrafast terahertz emission",
+
+"THz emission",
+
+"optical rectification",
+
+"photocurrent terahertz",
+
+
+"light-field control",
+
+"two-color excitation",
+
+"omega-2omega",
+
+"coherent control",
+
+
+"ultrafast carrier dynamics",
+
+"electron dynamics",
+
+"carrier acceleration",
+
+
+"semiconductor Bloch equation",
+
+"TDDFT",
+
+"Wannier",
+
+"Berry connection"
+
 
 ]
 
 
-# ==================================================
-# arXiv搜索
-# ==================================================
 
 def search_arxiv():
 
 
-    query = " OR ".join(
+    query=" OR ".join(
         [
             f'all:"{x}"'
             for x in KEYWORDS
@@ -95,13 +94,13 @@ def search_arxiv():
     )
 
 
-    params = {
+    params={
 
-        "search_query": query,
+        "search_query":query,
 
         "start":0,
 
-        "max_results":40,
+        "max_results":50,
 
         "sortBy":"submittedDate",
 
@@ -110,38 +109,29 @@ def search_arxiv():
     }
 
 
-    url = (
+    url=(
         "https://export.arxiv.org/api/query?"
         +
         urllib.parse.urlencode(params)
     )
 
 
-    print(url)
-
-
-    feed = feedparser.parse(url)
+    feed=feedparser.parse(url)
 
 
     papers=[]
 
 
-    cutoff = datetime.utcnow()-timedelta(days=7)
+    cutoff=datetime.utcnow()-timedelta(days=7)
 
 
-    for entry in feed.entries:
+    for e in feed.entries:
 
 
-        try:
-
-            date=datetime.strptime(
-                entry.published[:10],
-                "%Y-%m-%d"
-            )
-
-        except:
-
-            continue
+        date=datetime.strptime(
+            e.published[:10],
+            "%Y-%m-%d"
+        )
 
 
         if date < cutoff:
@@ -151,16 +141,13 @@ def search_arxiv():
         papers.append({
 
             "title":
-            entry.title.replace("\n"," "),
+            e.title.replace("\n"," "),
 
             "abstract":
-            entry.summary.replace("\n"," "),
-
-            "date":
-            entry.published[:10],
+            e.summary.replace("\n"," "),
 
             "link":
-            entry.link
+            e.link
 
         })
 
@@ -169,187 +156,125 @@ def search_arxiv():
 
 
 
-# ==================================================
-# 关键词预评分
-# ==================================================
-
-def keyword_score(paper):
+def score(p):
 
 
-    text = (
-        paper["title"]
+    text=(
+        p["title"]
         +
-        paper["abstract"]
+        p["abstract"]
     ).lower()
 
 
-    score=0
+    s=0
 
 
-    positive={
+    keys={
 
-        "high harmonic":30,
+    "high harmonic":30,
 
-        "hhg":30,
+    "hhg":30,
 
-        "strong-field":20,
+    "strong-field":20,
 
-        "terahertz emission":25,
+    "terahertz emission":25,
 
-        "thz emission":25,
+    "optical rectification":20,
 
-        "optical rectification":20,
+    "ultrafast":15,
 
-        "ultrafast":15,
+    "semiconductor bloch":15,
 
-        "carrier dynamics":15,
+    "tddft":10,
 
-        "semiconductor bloch":15,
-
-        "tddft":10,
-
-        "berry":10
 
     }
 
 
-    negative={
+    bad={
 
-        "communication":-50,
+    "communication":-50,
 
-        "wireless":-50,
+    "wireless":-50,
 
-        "antenna":-40,
+    "network":-30,
 
-        "network":-30,
-
-        "cryptography":-50
+    "antenna":-30,
 
     }
 
 
-    for k,v in positive.items():
+    for k,v in keys.items():
 
         if k in text:
+            s+=v
 
-            score += v
 
-
-    for k,v in negative.items():
+    for k,v in bad.items():
 
         if k in text:
-
-            score += v
-
-
-    return score
+            s+=v
 
 
+    return s
 
-# ==================================================
-# DeepSeek分析
-# ==================================================
 
-def ai_analysis(paper):
+
+
+def deepseek_summary(p):
 
 
     prompt=f"""
 
-你是一名强场超快凝聚态物理专家。
+你是强场超快凝聚态物理专家。
 
 
-请分析下面论文。
-
+分析论文：
 
 标题:
-
-{paper['title']}
+{p['title']}
 
 
 摘要:
-
-{paper['abstract']}
-
+{p['abstract']}
 
 
-我的研究方向：
 
-- 固体高次谐波 HHG
-- MgO强场实验
-- ω-2ω双色场HHG
-- 光学THz发射
-- THz调控固体电子动力学
-- SBE
-- TDDFT
-- Wannier方法
+要求：
 
+用中文总结：
 
-请用中文回答：
+1. 研究问题
 
+2. 核心物理机制
 
-1. 相关性评分（0-100）
+3. 主要实验或理论方法
+
+4. 对强场HHG、光学THz发射、超快动力学有什么意义
 
 
-2. 论文主要研究什么？
+不要评价推荐等级。
 
-
-3. 关键物理机制：
-
-讨论：
-
-- interband贡献
-- intraband贡献
-- Berry phase/quantum geometry
-- 载流子动力学
-- 声子作用
-
-
-4. 方法：
-
-实验？
-理论？
-
-是否使用：
-
-- SBE
-- TDDFT
-- Wannier
-
-
-5. 与我的研究关系：
-
-是否可能解释：
-
-- MgO HHG
-- 双色场增强
-- THz调控
-- 超快电子动力学
-
-
-6. 推荐等级：
-
-必须读 / 推荐读 / 低优先级
-
-
-如果只是THz通信、THz网络、量子通信，请明确指出无关。
+不要讨论是否使用SBE等。
 
 
 """
 
 
-    result=client.chat.completions.create(
+
+    r=client.chat.completions.create(
 
         model="deepseek-chat",
 
         messages=[
 
-            {
+        {
 
-            "role":"user",
+        "role":"user",
 
-            "content":prompt
+        "content":prompt
 
-            }
+        }
 
         ],
 
@@ -358,121 +283,16 @@ def ai_analysis(paper):
     )
 
 
-    return result.choices[0].message.content
+    return r.choices[0].message.content
 
 
 
-# ==================================================
-# 生成中文邮件
-# ==================================================
 
-def generate_report(papers):
 
+def send_mail(pdf):
 
-    today=datetime.now().strftime("%Y-%m-%d")
 
-
-    report=f"""
-
-================================================
-
-强场超快光学文献日报
-
-日期：
-{today}
-
-
-研究方向：
-
-固体HHG | 光学THz发射 | 光场调控 | 超快动力学
-
-
-================================================
-
-
-"""
-
-
-    if len(papers)==0:
-
-        return report+"最近没有发现相关论文"
-
-
-
-    # 取最高评分前10篇
-
-    papers=sorted(
-
-        papers,
-
-        key=keyword_score,
-
-        reverse=True
-
-    )
-
-
-    for i,p in enumerate(papers[:10]):
-
-
-        print(
-            "AI分析:",
-            p["title"]
-        )
-
-
-        analysis=ai_analysis(p)
-
-
-        report += f"""
-
-------------------------------------------------
-
-
-{i+1}. {p['title']}
-
-
-日期：
-
-{p['date']}
-
-
-链接：
-
-{p['link']}
-
-
-
-DeepSeek分析：
-
-
-{analysis}
-
-
-
-"""
-
-
-    return report
-
-
-
-# ==================================================
-# 发邮件
-# ==================================================
-
-def send_email(content):
-
-
-    msg=MIMEText(
-
-        content,
-
-        "plain",
-
-        "utf-8"
-
-    )
+    msg=MIMEMultipart()
 
 
     msg["From"]=EMAIL
@@ -481,40 +301,56 @@ def send_email(content):
 
 
     msg["Subject"]=Header(
-
-        "强场超快光学文献日报",
-
+        "强场超快光学文献报告",
         "utf-8"
-
     )
 
 
+    msg.attach(
+        MIMEText(
+        "今日文献报告已生成，请查看PDF附件。",
+        "plain",
+        "utf-8")
+    )
+
+
+    with open(
+        pdf,
+        "rb"
+    ) as f:
+
+        from email.mime.application import MIMEApplication
+
+        att=MIMEApplication(
+            f.read()
+        )
+
+        att.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=pdf
+        )
+
+        msg.attach(att)
+
+
+
     server=smtplib.SMTP_SSL(
-
-        SMTP_SERVER,
-
-        SMTP_PORT
-
+        "smtp.163.com",
+        465
     )
 
 
     server.login(
-
         EMAIL,
-
         SMTP_PASSWORD
-
     )
 
 
     server.sendmail(
-
         EMAIL,
-
         EMAIL,
-
         msg.as_string()
-
     )
 
 
@@ -522,33 +358,49 @@ def send_email(content):
 
 
 
-# ==================================================
-# MAIN
-# ==================================================
 
 if __name__=="__main__":
-
-
-    print("开始搜索arXiv")
 
 
     papers=search_arxiv()
 
 
-    print(
-        "找到论文:",
-        len(papers)
+    papers=sorted(
+        papers,
+        key=score,
+        reverse=True
     )
 
 
-    report=generate_report(
-        papers
+    important=papers[:5]
+
+    related=papers[5:15]
+
+
+
+    for p in important:
+
+        p["analysis"]=deepseek_summary(p)
+
+
+
+    for p in related:
+
+        p["category"]="相关方向"
+
+
+
+    filename="Strong_Field_Ultrafast_Report.pdf"
+
+
+    create_pdf(
+        important,
+        related,
+        filename
     )
 
 
-    send_email(
-        report
-    )
+    send_mail(filename)
 
 
-    print("发送完成")
+    print("Report finished")
