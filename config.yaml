@@ -1,0 +1,41 @@
+email:
+  receiver: sunxufs@163.com
+
+search:
+  days: 7
+
+keywords:
+
+  - strong-field ultrafast physics
+  - strong field electron dynamics
+  - attosecond physics
+
+  - solid-state high harmonic generation
+  - solid HHG
+  - high harmonic generation in solids
+
+  - terahertz dynamics
+  - THz spectroscopy
+  - THz driven dynamics
+
+  - semiconductor Bloch equation
+  - TDDFT HHG
+  - Wannier interpolation
+  - Berry phase HHG
+  - Berry curvature HHG
+
+materials:
+  - MgO
+  - ZnO
+  - WS2
+  - MoS2
+  - Silicon
+
+
+priority_journals:
+  - Nature
+  - Science
+  - Physical Review Letters
+  - Physical Review X
+  - Nature Photonics
+  - Optica
