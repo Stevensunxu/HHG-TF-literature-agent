@@ -9,7 +9,7 @@ from datetime import datetime
 # 邮箱设置
 # =========================
 
-receiver = "sunxufs@163.com"
+receiver = "ttsunxust@163.com"
 
 smtp_server = "smtp.163.com"
 smtp_port = 465
@@ -53,7 +53,7 @@ msg = MIMEText(
     "utf-8"
 )
 
-msg["From"] = "sunxufs@163.com"
+msg["From"] = "ttsunxust@163.com"
 msg["To"] = receiver
 
 msg["Subject"] = Header(
@@ -72,12 +72,12 @@ server = smtplib.SMTP_SSL(
 )
 
 server.login(
-    "sunxufs@163.com",
+    "ttsunxust@163.com",
     password
 )
 
 server.sendmail(
-    "sunxufs@163.com",
+    "ttsunxust@163.com",
     receiver,
     msg.as_string()
 )
