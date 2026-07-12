@@ -346,7 +346,104 @@ def remove_duplicate(papers):
 # ==================================================
 # 关键词评分
 # ==================================================
+# ==================================================
+# 期刊等级评分
+# ==================================================
 
+def journal_score(paper):
+
+
+    text = (
+
+        paper["title"]
+
+        +
+
+        paper.get("abstract","")
+
+        +
+
+        paper.get("source","")
+
+    ).lower()
+
+
+    score = 0
+
+
+    journals = {
+
+
+        # Nature系列
+
+        "nature physics":50,
+
+        "nature photonics":50,
+
+        "nature":45,
+
+        "nature communications":35,
+
+
+        # Science系列
+
+        "science":45,
+
+        "science advances":35,
+
+
+        # APS
+
+        "physical review letters":40,
+
+        "phys. rev. lett":40,
+
+        "prl":40,
+
+
+        "physical review x":45,
+
+
+        "physical review b":25,
+
+        "phys. rev. b":25,
+
+
+        # Optics
+
+        "optica":35,
+
+        "optics letters":20,
+
+        "advanced photonics":35,
+
+
+        # 其他强相关
+
+        "light: science & applications":40,
+
+        "laser & photonics reviews":35,
+
+
+        # 超快
+
+        "ultrafast science":35,
+
+        "acs photonics":30,
+
+
+    }
+
+
+    for j,w in journals.items():
+
+        if j in text:
+
+            score += w
+
+
+    return score
+    
 def score(p):
 
 
@@ -612,13 +709,19 @@ if __name__=="__main__":
 
 
     papers=sorted(
-
+    
         papers,
-
-        key=score,
-
+    
+        key=lambda x:
+    
+            score(x)
+    
+            +
+    
+            journal_score(x),
+    
         reverse=True
-
+    
     )
 
 
